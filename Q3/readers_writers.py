@@ -2,8 +2,8 @@ import threading
 import time
 import keyboard # pip install keyboard
 
-writers_init_threads_length = 2 # Número de threads de escritores inicial
-readers_init_threads_length = 5 # Número de threads de leitores inicial
+writers_init_threads_length = 6 # Número de threads de escritores inicial
+readers_init_threads_length = 50 # Número de threads de leitores inicial
 readers = 0 # Contador para ter controle do número de leitores
 mutex = threading.Semaphore(1) # Semáforo para proteger o contador de leitores
 roomIsEmpty = threading.Semaphore(1) # Semáforo para verificar se a sala (região crítica) está vazia ou não
@@ -45,7 +45,7 @@ def increase_readers_thread_length(): # Cria mais leitores no tempo de execuçã
   global readers_threads
   
   while not stop_execution.is_set():
-    time.sleep(2) # Diminuir esse tempo de espera, pode causar starvation nos escritores
+    time.sleep(0.09) # Diminuir esse tempo de espera, pode causar starvation nos escritores
     if not stop_execution.is_set():
       new_reader_thread = threading.Thread(target=reader, name=f'Leitor {len(readers_threads) + 1}')
       readers_threads.append(new_reader_thread)

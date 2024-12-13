@@ -2,8 +2,8 @@ import threading
 import time
 import keyboard  # pip install keyboard
 
-writers_init_threads_length = 2   # Número de threads de escritores inicial
-readers_init_threads_length = 5   # Número de threads de leitores inicial
+writers_init_threads_length = 6   # Número de threads de escritores inicial
+readers_init_threads_length = 50   # Número de threads de leitores inicial
 
 # Contador de leitores
 readers = 0
@@ -55,7 +55,7 @@ def reader():
 def increase_readers_thread_length():
     global readers_threads
     while not stop_execution.is_set():
-        time.sleep(2)  # Como antes, pode alterar o intervalo de criação de novos leitores
+        time.sleep(0.09)  # Como antes, pode alterar o intervalo de criação de novos leitores
         if not stop_execution.is_set():
             new_reader_thread = threading.Thread(target=reader, name=f'Leitor {len(readers_threads) + 1}')
             readers_threads.append(new_reader_thread)
