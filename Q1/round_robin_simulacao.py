@@ -6,125 +6,135 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
 
-# Configuração de estilo para os gráficos
+# Estilo para os gráficos
 sns.set(style="whitegrid")
 plt.rcParams["figure.figsize"] = (12, 6)
 
-# Classe para representar um processo do sistema
+
+# Classe Process - representa cada processo do sistema
 class Process:
     def __init__(self, name, burst_time):
         self.name = name
         self.burst_time = burst_time
         self.remaining_time = burst_time
-        self.initial_time = None
-        self.completion_time = None
-        self.last_executed_time = 0
-        self.waiting_time = 0
+        self.initial_time = None        # Quando o processo começou a ser executado pela primeira vez
+        self.completion_time = None     # Quando o processo terminou completamente
 
     def reset(self):
+        # Caso precise re-simular, este método retorna o processo ao estado inicial
         self.remaining_time = self.burst_time
         self.initial_time = None
         self.completion_time = None
-        self.last_executed_time = 0
-        self.waiting_time = 0
 
-# Algoritmo Round Robin para simular o comportamento de um escalonador
-def round_robin(processes, quantum):
+
+def round_robin(processes, quantum, arrival_time=0):
+    """
+    Função que simula o escalonamento Round Robin.
+    - processes: lista de processos (objetos da classe Process)
+    - quantum: valor do quantum (tempo de fatia de CPU para cada processo)
+    - arrival_time: tempo de chegada dos processos (aqui assumimos todos chegam em 0)
+
+    Retorna um dicionário com diversas métricas e a sequência de execução.
+    """
     ready_queue = deque(processes)
     current_time = 0
     finished_processes = 0
-    total_processes_len = len(processes)
+    total_processes = len(processes)
+
+    execution_sequence = []  # Armazena (tempo_inicio, nome_processo, duração_executada)
     waiting_time_list = []
     return_time_list = []
-    execution_sequence = []
 
-    # Como os processos chegam todos ao tempo 0, arrival_time = 0 para simplificar
-    while finished_processes < total_processes_len:
+    # Loop até que todos os processos sejam concluídos
+    while finished_processes < total_processes:
         if not ready_queue:
-            current_time +=1
+            # Se não há processo pronto, avança o tempo
+            current_time += 1
             continue
 
-        chosen_process = ready_queue.popleft()
+        # Pega o próximo processo da fila
+        process = ready_queue.popleft()
 
-        # Caso o processo esteja sendo executado pela primeira vez
-        if chosen_process.initial_time is None:
-            chosen_process.initial_time = current_time
+        # Se for a primeira execução do processo, registra o tempo inicial
+        if process.initial_time is None:
+            process.initial_time = current_time
 
-        # Tempo de execução: min(quantum, tempo_restante_do_processo)
-        exec_time = min(quantum, chosen_process.remaining_time)
-        chosen_process.remaining_time -= exec_time
+        # Determina o tempo de execução do processo neste "turno"
+        exec_time = min(quantum, process.remaining_time)
+        process.remaining_time -= exec_time
 
-        # Armazena no histórico de execução (para o diagrama de Gantt)
-        execution_sequence.append((current_time, chosen_process.name, exec_time))
+        # Adiciona a execução no histórico
+        execution_sequence.append((current_time, process.name, exec_time))
 
+        # Avança o tempo corrente
         current_time += exec_time
 
-        if chosen_process.remaining_time > 0:
-            # Processo não finalizado, retorna para a fila
-            ready_queue.append(chosen_process)
-            print(f"Tempo {current_time}: Executando {chosen_process.name} por {exec_time} unidades de tempo. Tempo restante: {chosen_process.remaining_time}")
-        else:
-            # Processo finalizado
-            chosen_process.completion_time = current_time
+        # Verifica se o processo finalizou
+        if process.remaining_time == 0:
+            process.completion_time = current_time
             finished_processes += 1
-            print(f"Tempo {current_time}: Executando {chosen_process.name} por {exec_time} unidades de tempo. Processo concluiu sua tarefa!")
 
-            # Como todos chegaram no tempo 0, o tempo de espera será (tempo inicial - chegada)
-            # E o tempo de retorno será (tempo de conclusão - chegada)
-            # Chegada = 0
-            wait_time = chosen_process.initial_time
-            return_time = chosen_process.completion_time
+            # Cálculo do tempo de espera e retorno
+            # Todos chegam em arrival_time = 0
+            wait_time = process.completion_time - process.burst_time
+            ret_time = process.completion_time  # retorno = completion_time - arrival_time (0)
             waiting_time_list.append(wait_time)
-            return_time_list.append(return_time)
-
-        # Tempo para troca de contexto (se ainda houver processos a executar)
-        if ready_queue:
+            return_time_list.append(ret_time)
+        else:
+            # Se ainda não finalizou, volta para a fila
+            ready_queue.append(process)
+            
+        # Inserimos um tempo de troca de contexto se ainda existem processos pendentes
+        if ready_queue and process.remaining_time > 0:
             current_time += 1
-            print(f"Tempo {current_time}: Troca de contexto.")
 
-    # Cálculo das métricas
-    average_waiting_time = sum(waiting_time_list) / total_processes_len
-    average_return_time = sum(return_time_list) / total_processes_len
+    # Cálculo das métricas finais
+    avg_waiting_time = sum(waiting_time_list) / total_processes
+    avg_return_time = sum(return_time_list) / total_processes
     waiting_time_std = statistics.stdev(waiting_time_list) if len(waiting_time_list) > 1 else 0
     return_time_std = statistics.stdev(return_time_list) if len(return_time_list) > 1 else 0
-    process_flow = finished_processes / current_time if current_time > 0 else 0
+    throughput = finished_processes / current_time if current_time > 0 else 0
 
     metrics = {
         'quantum': quantum,
-        'average_waiting_time': average_waiting_time,
+        'average_waiting_time': avg_waiting_time,
         'waiting_time_std': waiting_time_std,
-        'average_return_time': average_return_time,
+        'average_return_time': avg_return_time,
         'return_time_std': return_time_std,
-        'throughput': process_flow,
-        'execution_sequence': execution_sequence
+        'throughput': throughput,
+        'execution_sequence': execution_sequence,
+        'waiting_times': waiting_time_list,
+        'return_times': return_time_list
     }
-
-    print(f"\nTempo médio de espera: {average_waiting_time:.2f}")
-    print(f"Tempo médio de retorno: {average_return_time:.2f}")
-    print(f"Vazão: {process_flow:.2f}")
 
     return metrics
 
-# Função para simular Round Robin para diferentes quanta
+
 def simulate_round_robin(processes, quanta):
+    """
+    Simula o Round Robin para diferentes valores de quantum.
+    Retorna uma lista com as métricas de cada simulação.
+    """
     all_metrics = []
-    for quantum in quanta:
-        # Cria uma cópia profunda dos processos para cada simulação
+    for q in quanta:
+        # Faz uma cópia dos processos (para não bagunçar a lista original)
         processes_copy = copy.deepcopy(processes)
-        print(f"\n=-=-=-=-=-=-=-=-= Escalonador Round Robin quantum = {quantum} =-=-=-=-=-=-=-=-=\n")
-        metrics = round_robin(processes_copy, quantum)
+        metrics = round_robin(processes_copy, q)
         all_metrics.append(metrics)
-        print(f"\n=-=-=-=-=-=-=-=-=-=-=-=-=-= Fim da Execução para quantum = {quantum} =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n")
     return all_metrics
 
-# Função para plotar as métricas
+
 def plot_metrics(all_metrics):
-    quanta = [metric['quantum'] for metric in all_metrics]
-    avg_waiting = [metric['average_waiting_time'] for metric in all_metrics]
-    std_waiting = [metric['waiting_time_std'] for metric in all_metrics]
-    avg_return = [metric['average_return_time'] for metric in all_metrics]
-    std_return = [metric['return_time_std'] for metric in all_metrics]
-    throughput = [metric['throughput'] for metric in all_metrics]
+    """
+    Plota gráficos comparando as métricas (tempo médio de espera, retorno e vazão)
+    para diferentes valores de quantum.
+    """
+    quanta = [m['quantum'] for m in all_metrics]
+    avg_waiting = [m['average_waiting_time'] for m in all_metrics]
+    std_waiting = [m['waiting_time_std'] for m in all_metrics]
+    avg_return = [m['average_return_time'] for m in all_metrics]
+    std_return = [m['return_time_std'] for m in all_metrics]
+    throughput = [m['throughput'] for m in all_metrics]
 
     plt.figure(figsize=(14, 6))
 
@@ -154,8 +164,12 @@ def plot_metrics(all_metrics):
     plt.tight_layout()
     plt.show()
 
-# Função para plotar o diagrama de Gantt da sequência de execução
+
 def plot_gantt_chart(metrics, title_suffix=""):
+    """
+    Plota o diagrama de Gantt com base na sequência de execução registrada.
+    Isso ajuda a visualizar a ordem e a duração de execução de cada processo.
+    """
     execution_sequence = metrics['execution_sequence']
     quantum = metrics['quantum']
 
@@ -176,42 +190,52 @@ def plot_gantt_chart(metrics, title_suffix=""):
     ax.set_title(f'Diagrama de Gantt - Quantum = {quantum} {title_suffix}')
     ax.grid(True)
 
-    # Criação da legenda
-    patches = [mpatches.Patch(color=colors[proc], label=proc) for proc in colors]
+    # Legenda dos processos
+    patches = [mpatches.Patch(color=colors[p], label=p) for p in colors]
     ax.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc='upper left')
 
     plt.tight_layout()
     plt.show()
 
+
 def main():
-    # Define intervalos e número de processos
-    T1 = 0
-    T2 = 5
-    T3 = 20
-    T4 = 25
+    # Gerar alguns processos com burst times aleatórios
+    # Vamos manter a lógica de gerar processos com burst time variados.
+    T1, T2 = 0, 5
+    T3, T4 = 20, 25
     num_processes = 10
 
-    # Gera os processos com burst times aleatórios em intervalos diferentes
     processes = []
     for i in range(num_processes):
         if i % 2 == 0:
-            burst_time = random.randint(T1, T2)  # Intervalo [T1, T2]
+            burst_time = random.randint(T1, T2)
         else:
-            burst_time = random.randint(T3, T4) # Intervalo [T3, T4]
+            burst_time = random.randint(T3, T4)
         processes.append(Process(f"P{i+1}", burst_time))
 
-    # Quanta a serem testados
+    # Definindo quanta para teste
     quanta = [2, 4, 6]
 
-    # Simula Round Robin para os diferentes quanta
+    # Simulação
     all_metrics = simulate_round_robin(processes, quanta)
 
-    # Plota as métricas comparando os diferentes quanta
+    # Exibição dos resultados
+    for m in all_metrics:
+        print(f"=== Resultados para Quantum = {m['quantum']} ===")
+        print(f"Tempo Médio de Espera: {m['average_waiting_time']:.2f}")
+        print(f"Tempo Médio de Retorno: {m['average_return_time']:.2f}")
+        print(f"Vazão: {m['throughput']:.2f}\n")
+
+    # Plot das métricas
     plot_metrics(all_metrics)
 
-    # Plota o diagrama de Gantt para cada conjunto de métricas
-    for metrics in all_metrics:
-        plot_gantt_chart(metrics)
+    # Plot do Gantt para cada quantum
+    for m in all_metrics:
+        plot_gantt_chart(m, title_suffix="(Comparação)")
+
+    # Adicionando um recadinho divertido no final! 😎
+    print("Simulação concluída! 🎉 Aproveite os gráficos e métricas! 😄")
+
 
 if __name__ == "__main__":
     main()
